@@ -1,7 +1,12 @@
 import numpy as np
 import torch
 import scipy.spatial
+from functools import partial
 import jax.numpy as jnp
+from jax import jit
+import jax
+jax.config.update("jax_enable_x64", True)
+
 
 # def Pdist2(x, y):
 #     """compute the paired distance between x and y."""
@@ -256,17 +261,32 @@ def create_weights(N, weights_type):
     return weights
 
 
-import jax
-jax.config.update("jax_enable_x64", True)
 
 # complete MMD 
-def Pdist2(X, Y):
-    # Assuming this function computes pairwise squared distances.
-    # If there's another implementation detail, please provide.
-    XX = jnp.sum(X*X, axis=1)[:, jnp.newaxis]
-    YY = jnp.sum(Y*Y, axis=1)[jnp.newaxis, :]
-    distances = XX + YY - 2.0 * jnp.dot(X, Y.T)
-    return distances
+# def Pdist2(X, Y):
+#     # Assuming this function computes pairwise squared distances.
+#     # If there's another implementation detail, please provide.
+#     XX = jnp.sum(X*X, axis=1)[:, jnp.newaxis]
+#     YY = jnp.sum(Y*Y, axis=1)[jnp.newaxis, :]
+#     distances = XX + YY - 2.0 * jnp.dot(X, Y.T)
+#     return distances
+
+
+def Pdist2(x, y=None):
+    """Compute the paired distance between X and Y"""
+    x_norm = jnp.sum(x**2, axis=1, keepdims=True)
+    
+    if y is not None:
+        y_norm = jnp.sum(y**2, axis=1, keepdims=True).T
+    else:
+        y = x
+        y_norm = x_norm.T
+    
+    Pdist = x_norm + y_norm - 2.0 * jnp.dot(x, y.T)
+    Pdist = jnp.where(Pdist < 0, 0, Pdist)
+    
+    return Pdist
+
 
 def compute_K_matrices(X, Y, sigma0):
     Dxx = Pdist2(X, X)
@@ -278,6 +298,7 @@ def compute_K_matrices(X, Y, sigma0):
     Kxy = jnp.exp(-Dxy / sigma0)
     return Kxx, Kyy, Kxy
 
+
 def compute_mmd_sq(Kxx, Kyy, Kxy, m, n):
     term1 = jnp.sum(Kxx - jnp.diag(jnp.diag(Kxx))) / (m * (m - 1))
     term2 = jnp.sum(Kyy - jnp.diag(jnp.diag(Kyy))) / (n * (n - 1))
@@ -285,7 +306,7 @@ def compute_mmd_sq(Kxx, Kyy, Kxy, m, n):
 
     return term1 + term2 + term3
 
-
+@jit
 def compute_moments(Kxx, Kyy, Kxy):
     return [
         0,
@@ -306,7 +327,7 @@ def compute_moments(Kxx, Kyy, Kxy):
         jnp.sum(jnp.kron(Kyy, Kyy))
     ]
 
-def compute_Xi_values(C, m, n, mmd_sq):
+def compute_Xi_values(C, m, n, mmd_sq, complete=True):
     powers_m = [m ** i for i in range(5)]
     powers_n = [n ** i for i in range(5)]
     m1, m2, m3, m4 = powers_m[1], powers_m[2], powers_m[3], powers_m[4]
@@ -352,11 +373,13 @@ def compute_Xi_values(C, m, n, mmd_sq):
                  C[12], m2 * C[13]], [2, 2])
     ]
 
+    if complete == False:
+        Xi = [Xi[0], Xi[2]]
+        
     return Xi
 
-
-
-def compute_var(Xi, m, n):
+def compute_var(Xi, m, n, complete = True):
+    denom = m * (m - 1) * n * (n - 1)
     term_coefficients = [
         (4 * (m - 2) * (m - 3) * (n - 2)),
         (2 * (n - 2) * (n - 3)),
@@ -367,19 +390,22 @@ def compute_var(Xi, m, n):
         (2 * (n - 2)),
         (4)
     ]
-    denom = m * (m - 1) * n * (n - 1)
-    terms = [coeff * Xi[i] / denom for i, coeff in enumerate(term_coefficients)]
     
+    if complete:
+        terms = [coeff * Xi[i] / denom for i, coeff in enumerate(term_coefficients)]
+    else:
+        terms = [(term_coefficients[0] * Xi[0] / denom), (term_coefficients[2] * Xi[1] / denom)]
     return sum(terms)
 
 
-def completeMMDVar(X, Y, sigma0):
+# @partial(jit, static_argnums=(3, 4, 5, 6, 7, 8))
+def MMDVar(X, Y, sigma0, complete=True):
     m, n = len(X), len(Y)
     
     Kxx, Kyy, Kxy = compute_K_matrices(X, Y, sigma0)
     mmd_sq = compute_mmd_sq(Kxx, Kyy, Kxy, m, n)
     C = compute_moments(Kxx, Kyy, Kxy)
-    Xi = compute_Xi_values(C, m, n, mmd_sq)
-    var = compute_var(Xi, m, n)
+    Xi = compute_Xi_values(C, m, n, mmd_sq, complete)
+    var = compute_var(Xi, m, n, complete)
     
     return var
