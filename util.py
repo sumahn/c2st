@@ -1,26 +1,19 @@
 import numpy as np
 import torch
 import scipy.spatial
+import jax.numpy as jnp
 
-def Pdist2(x, y):
-    """Compute the paired distance between x and y."""
-    
-    if x.dim() > 2:
-        x = x.reshape(x.size(0), -1)
-    if y.dim() > 2:
-        y = y.reshape(y.size(0), -1) 
-    
-    x_norm = (x ** 2).sum(1).reshape(-1, 1) 
-    if y is not None:
-        y_norm = (y ** 2).sum(1).reshape(-1, 1) 
-    else:
-        y = x 
-        y_norm = x_norm.reshape(1, -1)
-        
-    Pdist = x_norm + y_norm - 2.0 * torch.mm(x, y.t())
-    Pdist[Pdist < 0] = 0 
-    
-    return Pdist 
+# def Pdist2(x, y):
+#     """compute the paired distance between x and y."""
+#     x_norm = (x ** 2).sum(1).view(-1, 1)
+#     if y is not None:
+#         y_norm = (y ** 2).sum(1).view(1, -1)
+#     else:
+#         y = x
+#         y_norm = x_norm.view(1, -1)
+#     Pdist = x_norm + y_norm - 2.0 * torch.mm(x, torch.transpose(y, 0, 1))
+#     Pdist[Pdist<0]=0
+#     return Pdist
 
 def get_item(x, is_cuda):
     """Get the numpy value from a torch tensor."""
@@ -261,3 +254,132 @@ def create_weights(N, weights_type):
             '"decreasing" or "increasing" or "centred".'
         )
     return weights
+
+
+import jax
+jax.config.update("jax_enable_x64", True)
+
+# complete MMD 
+def Pdist2(X, Y):
+    # Assuming this function computes pairwise squared distances.
+    # If there's another implementation detail, please provide.
+    XX = jnp.sum(X*X, axis=1)[:, jnp.newaxis]
+    YY = jnp.sum(Y*Y, axis=1)[jnp.newaxis, :]
+    distances = XX + YY - 2.0 * jnp.dot(X, Y.T)
+    return distances
+
+def compute_K_matrices(X, Y, sigma0):
+    Dxx = Pdist2(X, X)
+    Dyy = Pdist2(Y, Y)
+    Dxy = Pdist2(X, Y)
+
+    Kxx = jnp.exp(-Dxx / sigma0)
+    Kyy = jnp.exp(-Dyy / sigma0)
+    Kxy = jnp.exp(-Dxy / sigma0)
+    return Kxx, Kyy, Kxy
+
+def compute_mmd_sq(Kxx, Kyy, Kxy, m, n):
+    term1 = jnp.sum(Kxx - jnp.diag(jnp.diag(Kxx))) / (m * (m - 1))
+    term2 = jnp.sum(Kyy - jnp.diag(jnp.diag(Kyy))) / (n * (n - 1))
+    term3 = -2 * jnp.sum(Kxy) / (m * n)
+
+    return term1 + term2 + term3
+
+
+def compute_moments(Kxx, Kyy, Kxy):
+    return [
+        0,
+        jnp.trace(Kxx.T @ Kxx),
+        jnp.sum(Kxx @ Kxx),
+        jnp.sum(jnp.kron(Kxx, Kxx)),
+        jnp.sum(jnp.kron(Kxx, Kyy)),
+        jnp.sum(Kxx @ Kxy),
+        jnp.sum(jnp.kron(Kxx, Kxy)),
+        jnp.sum(Kxy @ Kyy),
+        jnp.sum(jnp.kron(Kxy, Kyy)),
+        jnp.trace(Kxy.T @ Kxy),
+        jnp.sum(Kxy.T @ Kxy),
+        jnp.sum(Kxy @ Kxy.T),
+        jnp.sum(jnp.kron(Kxy, Kxy)),
+        jnp.trace(Kyy.T @ Kyy),
+        jnp.sum(Kyy @ Kyy),
+        jnp.sum(jnp.kron(Kyy, Kyy))
+    ]
+
+def compute_Xi_values(C, m, n, mmd_sq):
+    powers_m = [m ** i for i in range(5)]
+    powers_n = [n ** i for i in range(5)]
+    m1, m2, m3, m4 = powers_m[1], powers_m[2], powers_m[3], powers_m[4]
+    n1, n2, n3, n4 = powers_n[1], powers_n[2], powers_n[3], powers_n[4]
+
+    mmd2 = mmd_sq ** 2
+
+    def calc_xi(coefficients, denominator_power):
+        xi_value = sum(coefficients)
+        return xi_value / ((m1 ** denominator_power[0]) * (n1 ** denominator_power[1])) - mmd2
+
+    Xi = [
+        # xi_01
+        calc_xi([n3 * C[3], 2 * m2 * n1 * C[4], -4 * m * n2 * C[6], -2 * m3 * n1 * C[7], -2 * m3 * C[8], m2 * n2 * C[11], 
+                 3 * m2 * n1 * C[12], m4 * C[14]], [4, 3]),
+        
+        # xi_02
+        calc_xi([n2 * C[3], 2 * m2 * C[4], -4 * m * n1 * C[6], -4 * m3 * C[7], 2 * m2 * n1 * C[11], 2 * m2 * C[12], 
+                 m4 * C[13]], [4, 2]),
+        
+        # xi_10
+        calc_xi([n4 * C[2], 2 * m * n1 * n2 * C[4], -2 * m * n1 * n3 * C[5], -2 * n3 * C[6], -4 * m2 * n1 * C[8], 
+                 m2 * n1 * n2 * C[10], 3 * m * n1 * n2 * C[12], m3 * C[15]], [3, 4]),
+        
+        # xi_11
+        calc_xi([n3 * C[2], 2 * m * n1 * C[4], -2 * m * n2 * C[5], -2 * n2 * C[6], -2 * m2 * n1 * C[7], -2 * m2 * C[8], 
+                 0.25 * m2 * n2 * C[9], 0.75 * m2 * n1 * C[10], 2.25 * m * n1 * C[12], m3 * C[14]], [3, 3]),
+        
+        # xi_12
+        calc_xi([m * n2 * C[2], 2 * m * C[4], -2 * m * n1 * C[5], -2 * n1 * C[6], -4 * m2 * C[7], 0.5 * m2 * n1 * C[9], 
+                 0.5 * m2 * C[10], 1.5 * m * n1 * C[11], 1.5 * m * C[12], m3 * C[13]], [3, 2]),
+        
+        # xi_20
+        calc_xi([n4 * C[1], 2 * n2 * C[4], -4 * n3 * C[5], -4 * m * n1 * C[8], 2 * m * n2 * C[10], 2 * n2 * C[12], 
+                 m2 * C[15]], [2, 4]),
+        
+        # xi_21
+        calc_xi([n3 * C[1], 2 * n1 * C[4], -4 * n2 * C[5], -2 * m * n1 * C[7], -2 * m * C[8], 0.5 * m * n2 * C[9], 
+                 1.5 * m * n1 * C[10], 0.5 * n2 * C[11], 1.5 * n1 * C[12], m2 * C[14]], [2, 3]),
+        
+        # xi_22
+        calc_xi([n2 * C[1], 2 * C[4], -4 * n1 * C[5], -4 * m * C[7], m * n1 * C[9], m * C[10], n1 * C[11], 
+                 C[12], m2 * C[13]], [2, 2])
+    ]
+
+    return Xi
+
+
+
+def compute_var(Xi, m, n):
+    term_coefficients = [
+        (4 * (m - 2) * (m - 3) * (n - 2)),
+        (2 * (n - 2) * (n - 3)),
+        (4 * (m - 2) * (n - 2) * (n - 3)),
+        (16 * (n - 2) * (m - 2)),
+        (8 * (m - 2)),
+        (2 * (n - 2) * (n - 3)),
+        (2 * (n - 2)),
+        (4)
+    ]
+    denom = m * (m - 1) * n * (n - 1)
+    terms = [coeff * Xi[i] / denom for i, coeff in enumerate(term_coefficients)]
+    
+    return sum(terms)
+
+
+def completeMMDVar(X, Y, sigma0):
+    m, n = len(X), len(Y)
+    
+    Kxx, Kyy, Kxy = compute_K_matrices(X, Y, sigma0)
+    mmd_sq = compute_mmd_sq(Kxx, Kyy, Kxy, m, n)
+    C = compute_moments(Kxx, Kyy, Kxy)
+    Xi = compute_Xi_values(C, m, n, mmd_sq)
+    var = compute_var(Xi, m, n)
+    
+    return var
