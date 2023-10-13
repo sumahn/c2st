@@ -37,6 +37,12 @@ def Pdist2(x, y=None):
     
     return Pdist
 
+# def Pdist2(X, Y):
+#     # Assuming this function computes pairwise squared distances.
+#     XX = jnp.sum(X*X, axis=1)[:, jnp.newaxis]
+#     YY = jnp.sum(Y*Y, axis=1)[jnp.newaxis, :]
+#     distances = XX + YY - 2.0 * jnp.dot(X, Y.T)
+#     return distances
 
 def compute_K_matrices(X, Y, sigma0):
     Dxx = Pdist2(X, X)
@@ -93,6 +99,7 @@ def compute_Xi_values(C, m, n, mmd_sq, complete=True):
     #     return xi_value / ((m1 ** denominator_power[0]) * (n1 ** denominator_power[1])) - mmd2
     
     def calc_xi(coefficients, denominator_power):
+        print(len(coefficients))
         log_numerator = jnp.log(sum(coefficients))
         log_denominator = denominator_power[0] * jnp.log(m1) + denominator_power[1] * jnp.log(n1)
         xi_value = jnp.exp(log_numerator - log_denominator)
@@ -104,7 +111,7 @@ def compute_Xi_values(C, m, n, mmd_sq, complete=True):
                  3 * m2 * n1 * C[12], m4 * C[14]], [4, 3]),
         
         # xi_02
-        calc_xi([n2 * C[3], 2 * m2 * C[4], -4 * m * n1 * C[6], -4 * m3 * C[7], 2 * m2 * n1 * C[11], 2 * m2 * C[12], 
+        calc_xi([n2 * C[3], 2 * m2 * C[4], -4 * m1 * n1 * C[6], -4 * m3 * C[7], 2 * m2 * n1 * C[11], 2 * m2 * C[12], 
                  m4 * C[13]], [4, 2]),
         
         # xi_10
@@ -113,14 +120,14 @@ def compute_Xi_values(C, m, n, mmd_sq, complete=True):
         
         # xi_11
         calc_xi([n3 * C[2], 2 * m1 * n1 * C[4], -2 * m1 * n2 * C[5], -2 * n2 * C[6], -2 * m2 * n1 * C[7], -2 * m2 * C[8], 
-                 0.25 * m2 * n2 * C[9], 0.75 * m2 * n1 * C[10], 2.25 * m1 * n1 * C[12], m3 * C[14]], [3, 3]),
+                 0.25 * m2 * n2 * C[9], 0.75 * m2 * n1 * C[10], 0.75 * m1 * n2 * C[11], 2.25 * m1 * n1 * C[12], m3 * C[14]], [3, 3]),
         
         # xi_12
         calc_xi([m1 * n2 * C[2], 2 * m1 * C[4], -2 * m1 * n1 * C[5], -2 * n1 * C[6], -4 * m2 * C[7], 0.5 * m2 * n1 * C[9], 
                  0.5 * m2 * C[10], 1.5 * m1 * n1 * C[11], 1.5 * m * C[12], m3 * C[13]], [3, 2]),
         
         # xi_20
-        calc_xi([n4 * C[1], 2 * n2 * C[4], -4 * n3 * C[5], -4 * m * n1 * C[8], 2 * m * n2 * C[10], 2 * n2 * C[12], 
+        calc_xi([n4 * C[1], 2 * n2 * C[4], -4 * n3 * C[5], -4 * m1 * n1 * C[8], 2 * m1 * n2 * C[10], 2 * n2 * C[12], 
                  m2 * C[15]], [2, 4]),
         
         # xi_21
@@ -184,6 +191,7 @@ def MMDVar(X, Y, sigma0, complete=True):
     mmd_sq = Vstat_MMD(Kxx, Kyy, Kxy, m, n)
     C = compute_moments(Kxx, Kyy, Kxy)
     Xi = compute_Xi_values(C, m, n, mmd_sq, complete)
+    # print(Xi)
     var = compute_var(Xi, m, n, complete)
     
     return var
