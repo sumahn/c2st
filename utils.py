@@ -99,7 +99,7 @@ def compute_Xi_values(C, m, n, mmd_sq, complete=True):
     #     return xi_value / ((m1 ** denominator_power[0]) * (n1 ** denominator_power[1])) - mmd2
     
     def calc_xi(coefficients, denominator_power):
-        print(len(coefficients))
+        # print(len(coefficients))
         log_numerator = jnp.log(sum(coefficients))
         log_denominator = denominator_power[0] * jnp.log(m1) + denominator_power[1] * jnp.log(n1)
         xi_value = jnp.exp(log_numerator - log_denominator)
