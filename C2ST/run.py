@@ -147,7 +147,7 @@ def main():
     cifar10_data = []
     labels0 = np.zeros(len(data_all_transformed))
     for i in Ind_tr:
-        cifar10_data.append([data_all_transformed[i], labels0[i]])
+        cifar10_data.append(data_all_transformed[i])
         # cifar10_data.append(data_all_transformed[i])
 
     # Collect CIFAR10.1 images
@@ -156,7 +156,7 @@ def main():
     new_cifar10_data = []
     labels1 = np.ones(len(New_CIFAR_tr))
     for i in Ind_tr_v4:
-        new_cifar10_data.append([New_CIFAR_tr[i], labels1[i]])
+        new_cifar10_data.append(New_CIFAR_tr[i])
         # new_cifar10_data.append(New_CIFAR_tr[i])
 
     train_dataset = torch.concatenate((data_all_transformed[Ind_tr], New_CIFAR_tr[Ind_tr_v4]))
