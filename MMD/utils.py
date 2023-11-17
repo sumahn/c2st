@@ -47,3 +47,20 @@ def Ustat_MMD(tKxx, tKyy, Kxy, m, n):
     term3 = -2 * jnp.sum(Kxy) / (m * n)
 
     return term1 + term2 + term3
+
+
+def center_kernel_matrix(K):
+    """Center a kernel matrix using the centering matrix H."""
+    n = K.shape[0]
+    H = jnp.eye(n) - (1.0 / n) * jnp.ones((n, n))
+    return jnp.dot(jnp.dot(H, K), H)
+
+def HSIC(Kxx, Kyy):
+    """Compute the Hilbert-Schmidt Independence Criterion."""
+    n = Kxx.shape[0]
+    centered_Kxx = center_kernel_matrix(Kxx)
+    centered_Kyy = center_kernel_matrix(Kyy)
+
+    hsic = jnp.trace(jnp.dot(centered_Kxx, centered_Kyy)) / ((n - 1) ** 2)
+    return hsic
+

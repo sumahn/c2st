@@ -191,8 +191,8 @@ def Pdist2(x, y):
 
 def h1_mean_var_gram(Kx, Ky, Kxy, is_var_computed, use_1sample_U=True, complete=True):
     """compute value of MMD and std of MMD using kernel matrix."""
-    Kxxy = torch.cat((Kx,Kxy),1)
-    Kyxy = torch.cat((Kxy.transpose(0,1),Ky),1)
+    Kxxy = torch.cat((Kx,Kxy),1) # (m , (m+n))
+    Kyxy = torch.cat((Kxy.transpose(0,1),Ky),1) # (n, (m+n))
     Kxyxy = torch.cat((Kxxy,Kyxy),0)
     nx = Kx.shape[0]
     ny = Ky.shape[0]
@@ -219,7 +219,7 @@ def h1_mean_var_gram(Kx, Ky, Kxy, is_var_computed, use_1sample_U=True, complete=
         mmd2 = xx - 2 * xy + yy
     if not is_var_computed:
         return mmd2, None, Kxyxy
-    hh = Kx+Ky-Kxy-Kxy.transpose(0,1)
+    # hh = Kx+Ky-Kxy-Kxy.transpose(0,1)
     
     if complete:
         tKxx = Kx - torch.diag(torch.diag(Kx)) 
@@ -229,11 +229,11 @@ def h1_mean_var_gram(Kx, Ky, Kxy, is_var_computed, use_1sample_U=True, complete=
         Kxy = jnp.array(Kxy.cpu().detach().numpy())
 
         varEst = ComMMDVar(tKxx, tKyy, Kxy)
-    else:        
+    # else:        
         # 우리가 수정할 부분
-        V1 = torch.dot(hh.sum(1)/ny,hh.sum(1)/ny) / ny
-        V2 = (hh).sum() / (nx) / nx
-        varEst = 4*(V1 - V2**2)
+        # V1 = torch.dot(hh.sum(1)/ny,hh.sum(1)/ny) / ny
+        # V2 = (hh).sum() / (nx) / nx
+        # varEst = 4*(V1 - V2**2)
     
     if varEst == 0.0:
         raise ValueError("error var")

@@ -4,12 +4,14 @@ https://github.com/fengliu90/DK-for-TST/blob/master/Deep_Baselines_CIFAR10.py
 """
 from argparse import Namespace
 import numpy as np
+import jax.numpy as jnp
 from torch.autograd import Variable
 import torch.nn as nn
 import torch
 from tqdm.auto import tqdm
-from mmdvar import ComMMDVar
-import jax.numpy as jnp
+from mmdvar import ComMMDVar, IncomMMDVar
+from utils import HSIC
+
 
 torch.backends.cudnn.deterministic = True
 is_cuda = True
@@ -183,7 +185,7 @@ def Pdist2(x, y):
     Pdist = x_norm + y_norm - 2.0 * torch.mm(x, torch.transpose(y, 0, 1))
     Pdist[Pdist<0]=0
     return Pdist
-
+        
 def h1_mean_var_gram(Kx, Ky, Kxy, is_var_computed, use_1sample_U=True, complete=True):
     """compute value of MMD and std of MMD using kernel matrix."""
     Kxxy = torch.cat((Kx,Kxy),1)
@@ -215,6 +217,9 @@ def h1_mean_var_gram(Kx, Ky, Kxy, is_var_computed, use_1sample_U=True, complete=
     if not is_var_computed:
         return mmd2, None, Kxyxy
     hh = Kx+Ky-Kxy-Kxy.transpose(0,1)
+    hsic_xx = HSIC(jnp.array(Kx.cpu().detach().numpy()), jnp.array(Kx.cpu().detach().numpy()))
+    hsic_yy = HSIC(jnp.array(Ky.cpu().detach().numpy()), jnp.array(Ky.cpu().detach().numpy()))
+    hsic_xy = HSIC(jnp.array(Kx.cpu().detach().numpy()), jnp.array(Ky.cpu().detach().numpy())) 
     
     if complete:
         tKxx = Kx - torch.diag(torch.diag(Kx)) 
@@ -232,7 +237,7 @@ def h1_mean_var_gram(Kx, Ky, Kxy, is_var_computed, use_1sample_U=True, complete=
     
     if varEst == 0.0:
         raise ValueError("error var")
-    return mmd2, varEst, Kxyxy
+    return mmd2, varEst, Kxyxy, hsic_xx, hsic_yy, hsic_xy
 
 
 def MMDu(Fea, len_s, Fea_org, sigma, sigma0=0.1, epsilon = 10**(-10), is_smooth=True, is_var_computed=True, use_1sample_U=True, complete=True):
@@ -296,4 +301,6 @@ def TST_MMD_u(Fea, N_per, N1, Fea_org, sigma, sigma0, ep, alpha, device, dtype, 
     if h == 1:
         S_mmd_vector = np.sort(mmd_vector)
         threshold = S_mmd_vector[np.int(np.ceil(N_per * (1 - alpha)))]
+    print("MMDs: ", mmd_vector)
+    print("threshold: ", threshold)
     return h, threshold, mmd_value.item()

@@ -117,47 +117,31 @@ def main():
     data_all_transformed = torch.zeros([len(data_all), 2, 3, 64, 64])
 
     for i in tqdm(range(len(data_trans))):
-        # Convert tensor to PIL image, and un-normalize it for conversion to work
         pil_image1 = trans((data_trans[i] * 0.5) + 0.5)  # un-normalize
-
-        # Apply the ContrastiveLearningViewGenerator
         transformed_views1 = contrastive_gen(pil_image1)
-        
-        # Convert the transformed PIL images back to tensors and normalize them
         transformed_tensors1 = [(tensor - 0.5) / 0.5 for tensor in transformed_views1]  # normalize
-        
-        # Store them in new tensor
         data_trans_transformed[i] = torch.stack(transformed_tensors1)
         
     for i in tqdm(range(len(data_all))):
-        # Convert tensor to PIL image, and un-normalize it for conversion to work
         pil_image2 = trans((data_all[i] * 0.5) + 0.5)
-
-        # Apply the ContrastiveLearningViewGenerator
         transformed_views2 = contrastive_gen(pil_image2)
-        
-        # Convert the transformed PIL images back to tensors and normalize them
         transformed_tensors2 = [(tensor - 0.5) / 0.5 for tensor in transformed_views2]
-        
-        # Store them in new tensor
         data_all_transformed[i] = torch.stack(transformed_tensors2)
     
     # Collect CIFAR10 images
     Ind_tr = np.random.choice(len(data_all), len(data_T), replace=False)
     cifar10_data = []
-    labels0 = np.zeros(len(data_all_transformed))
+    # labels0 = np.zeros(len(data_all_transformed))
     for i in Ind_tr:
         cifar10_data.append(data_all_transformed[i])
-        # cifar10_data.append(data_all_transformed[i])
 
     # Collect CIFAR10.1 images
     Ind_tr_v4 = np.random.choice(len(data_T), len(data_T), replace=False)
     New_CIFAR_tr = data_trans_transformed[Ind_tr_v4]
     new_cifar10_data = []
-    labels1 = np.ones(len(New_CIFAR_tr))
+    # labels1 = np.ones(len(New_CIFAR_tr))
     for i in Ind_tr_v4:
         new_cifar10_data.append(New_CIFAR_tr[i])
-        # new_cifar10_data.append(New_CIFAR_tr[i])
 
     train_dataset = torch.concatenate((data_all_transformed[Ind_tr], New_CIFAR_tr[Ind_tr_v4]))
     train_loader = torch.utils.data.DataLoader(
