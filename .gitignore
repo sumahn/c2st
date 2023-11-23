@@ -3,3 +3,4 @@ C2ST/runs/
 .conda/
 .config/
 .local/
+__pycache__/
