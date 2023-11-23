@@ -1,6 +1,8 @@
 import jax.numpy as jnp
 from sub_expressions import * 
 import jax 
+import torch 
+from utils import HSIC, jnp_to_tensor
 jax.config.update("jax_enable_x64", True)
 
 
@@ -61,39 +63,53 @@ def ComMMDVar(tKxx, tKyy, Kxy):
     ])/factorial(m,2)/factorial(n,2)
     return res 
 
-def h1_mean_var_gram(Kxx, Kyy, Kxy, is_var_computed, use_1sample_U=True):
-    """compute value of MMD and std of MMD using kernel matrix.(Liu et al. 2020)"""
-    Kxxy = jnp.concatenate((Kxx, Kxy), axis=1)
-    Kyxy = jnp.concatenate((jnp.transpose(Kxy), Kyy), axis=1)
-    Kxyxy = jnp.concatenate((Kxxy, Kyxy), axis=0)
-    nx = Kxx.shape[0]
-    ny = Kyy.shape[0]
+def h1_mean_var_gram(Kx, Ky, Kxy, is_var_computed, use_1sample_U=True, complete=True):
+    """compute value of MMD and std of MMD using kernel matrix."""
+    Kxxy = torch.cat((Kx,Kxy),1)
+    Kyxy = torch.cat((Kxy.transpose(0,1),Ky),1)
+    Kxyxy = torch.cat((Kxxy,Kyxy),0)
+    nx = Kx.shape[0]
+    ny = Ky.shape[0]
     is_unbiased = True
+    
+    # 우리가 수정할 부분
     if is_unbiased:
-        xx = (jnp.sum(Kxx) - jnp.sum(jnp.diag(Kxx))) / (nx * (nx - 1))
-        yy = (jnp.sum(Kyy) - jnp.sum(jnp.diag(Kyy))) / (ny * (ny - 1))
+        xx = torch.div((torch.sum(Kx) - torch.sum(torch.diag(Kx))), (nx * (nx - 1)))
+        yy = torch.div((torch.sum(Ky) - torch.sum(torch.diag(Ky))), (ny * (ny - 1)))
         # one-sample U-statistic.
         if use_1sample_U:
-            xy = (jnp.sum(Kxy) - jnp.sum(jnp.diag(Kxy))) / (nx * (ny - 1))
+            xy = torch.div((torch.sum(Kxy) - torch.sum(torch.diag(Kxy))), (nx * (ny - 1)))
         else:
-            xy = jnp.sum(Kxy) / (nx * ny)
+            xy = torch.div(torch.sum(Kxy), (nx * ny))
         mmd2 = xx - 2 * xy + yy
     else:
-        xx = jnp.sum(Kxx) / (nx * nx)
-        yy = jnp.sum(Kyy) / (ny * ny)
+        xx = torch.div((torch.sum(Kx)), (nx * nx))
+        yy = torch.div((torch.sum(Ky)), (ny * ny))
         # one-sample U-statistic.
         if use_1sample_U:
-            xy = jnp.sum(Kxy) / (nx * ny)
+            xy = torch.div((torch.sum(Kxy)), (nx * ny))
         else:
-            xy = jnp.sum(Kxy) / (nx * ny)
+            xy = torch.div(torch.sum(Kxy), (nx * ny))
         mmd2 = xx - 2 * xy + yy
     if not is_var_computed:
-        return mmd2, None
-
-    hh = Kxx + Kyy - Kxy - jnp.transpose(Kxy)
-    V1 = jnp.dot(hh.sum(axis=1) / ny, hh.sum(axis=1) / ny) / ny
-    V2 = hh.sum() / nx / nx
-    varEst = 4 * (V1 - V2**2) / nx
-    if varEst == 0.0:
-        print('error!!' + str(V1))
-    return mmd2, varEst, Kxyxy
+        return mmd2, None, Kxyxy
+    hh = Kx+Ky-Kxy-Kxy.transpose(0,1)
+    hsic_xx = HSIC(jnp.array(Kx.cpu().detach().numpy()), jnp.array(Kx.cpu().detach().numpy()))
+    hsic_yy = HSIC(jnp.array(Ky.cpu().detach().numpy()), jnp.array(Ky.cpu().detach().numpy()))
+    hsic_xy = HSIC(jnp.array(Kx.cpu().detach().numpy()), jnp.array(Ky.cpu().detach().numpy())) 
+    
+    if complete:
+        tKxx = Kx - torch.diag(torch.diag(Kx)) 
+        tKyy = Ky - torch.diag(torch.diag(Ky))
+        tKxx = jnp.array(tKxx.cpu().detach().numpy())
+        tKyy = jnp.array(tKyy.cpu().detach().numpy())
+        Kxy = jnp.array(Kxy.cpu().detach().numpy())
+        varEst = torch.abs(jnp_to_tensor(ComMMDVar(tKxx, tKyy, Kxy)))
+    else: 
+        V1 = torch.dot(hh.sum(1)/ny,hh.sum(1)/ny) / ny
+        V2 = (hh).sum() / (nx) / nx
+        varEst = 4*(V1 - V2**2)
+    
+    # if varEst == 0.0:
+    #     raise ValueError("error var")
+    return mmd2, varEst, Kxyxy, hsic_xx, hsic_yy, hsic_xy

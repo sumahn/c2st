@@ -1,6 +1,10 @@
+import numpy as np
+import torch
 import jax.numpy as jnp 
 from jax.config import config 
 config.update("jax_enable_x64", True) 
+
+
 
 def remove_diag(A):
     """Remove diagonal elements from a matrix."""
@@ -57,10 +61,16 @@ def center_kernel_matrix(K):
 
 def HSIC(Kxx, Kyy):
     """Compute the Hilbert-Schmidt Independence Criterion."""
-    n = Kxx.shape[0]
+    m = Kxx.shape[0]
+    n = Kyy.shape[0]
     centered_Kxx = center_kernel_matrix(Kxx)
     centered_Kyy = center_kernel_matrix(Kyy)
 
-    hsic = jnp.trace(jnp.dot(centered_Kxx, centered_Kyy)) / ((n - 1) ** 2)
+    hsic = jnp.trace(jnp.dot(centered_Kxx, centered_Kyy)) / (m * (n - 1))
     return hsic
+
+def jnp_to_tensor(X):
+    X_np = np.array(X)
+    X_tensor = torch.from_numpy(X_np)
+    return X_tensor
 

@@ -1,2 +1,5 @@
 C2ST/runs/
-ssl_hsic_env/
+.cache/
+.conda/
+.config/
+.local/
