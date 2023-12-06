@@ -6,17 +6,11 @@ from argparse import Namespace
 import argparse
 import os
 import numpy as np
-import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
-from torchvision import datasets
 from torch.autograd import Variable
 import torch.nn as nn
 import torch
-import torchvision 
-import scipy.stats as stats
 from tqdm.auto import tqdm
-from utils_HD import get_item, MatConvert, Pdist2, MMDu, TST_MMD_u
-from mmdvar import IncomMMDVar, ComMMDVar, h1_mean_var_gram
+from utils_HD import MatConvert, MMDu, TST_MMD_u
 
 torch.backends.cudnn.deterministic = True
 is_cuda = True
@@ -169,3 +163,4 @@ def deep_mmd_image(sample_p, sample_q, use_1sample_U, complete, n_epochs=1000):
         complete=complete
     )
     return h
+

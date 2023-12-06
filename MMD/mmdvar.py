@@ -104,7 +104,7 @@ def h1_mean_var_gram(Kx, Ky, Kxy, is_var_computed, use_1sample_U=True, complete=
         tKxx = jnp.array(tKxx.cpu().detach().numpy())
         tKyy = jnp.array(tKyy.cpu().detach().numpy())
         Kxy = jnp.array(Kxy.cpu().detach().numpy())
-        varEst = torch.abs(jnp_to_tensor(ComMMDVar(tKxx, tKyy, Kxy)))
+        varEst = jnp_to_tensor(ComMMDVar(tKxx, tKyy, Kxy))
     else: 
         V1 = torch.dot(hh.sum(1)/ny,hh.sum(1)/ny) / ny
         V2 = (hh).sum() / (nx) / nx

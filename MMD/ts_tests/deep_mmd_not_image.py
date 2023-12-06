@@ -83,7 +83,7 @@ def deep_mmd_not_image(sample_p, sample_q, use_1sample_U, complete, n_epochs=100
         # Compute J (STAT_u)
         TEMP = MMDu(modelu_output, N1, S, sigma, sigma0_u, ep, use_1sample_U=use_1sample_U, complete=complete)
         mmd_value_temp = -1 * TEMP[0]
-        mmd_std_temp = torch.sqrt(TEMP[1]+10**(-8))
+        mmd_std_temp = torch.sqrt(TEMP[1]+10**(-6))
         STAT_u = torch.div(mmd_value_temp, mmd_std_temp)
         # Initialize optimizer and Compute gradient
         optimizer_u.zero_grad()

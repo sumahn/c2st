@@ -91,7 +91,7 @@ def h1_mean_var_gram(Kx, Ky, Kxy, is_var_computed, use_1sample_U=True, complete=
         V2 = (hh).sum() / (nx) / nx
         varEst = 4*(V1 - V2**2)
     
-    # print(varEst)
+    # print("mmd2: ", mmd2.item(), '\t', "var: ", varEst.item())
     # if varEst == 0.0:
     #     raise ValueError("error var")
     return mmd2, varEst, Kxyxy, hsic_xx, hsic_yy, hsic_xy
@@ -157,5 +157,5 @@ def TST_MMD_u(Fea, N_per, N1, Fea_org, sigma, sigma0, ep, alpha, device, dtype, 
             h = 1
     if h == 1:
         S_mmd_vector = np.sort(mmd_vector)
-        threshold = S_mmd_vector[np.int(np.ceil(N_per * (1 - alpha)))]
+        threshold = S_mmd_vector[int(np.ceil(N_per * (1 - alpha)))]
     return h, threshold, mmd_value.item()

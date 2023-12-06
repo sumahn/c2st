@@ -1,10 +1,25 @@
+import os, sys
 import numpy as np
 import torch
 import jax.numpy as jnp 
 from jax.config import config 
 config.update("jax_enable_x64", True) 
 
-
+class HiddenPrints:
+    """
+    Hide prints and warnings.
+    """
+    def __enter__(self):
+        self._original_stdout = sys.stdout
+        sys.stdout = open(os.devnull, 'w')
+        self._original_stderr = sys.stderr
+        sys.stderr = open(os.devnull, 'w')
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        sys.stdout.close()
+        sys.stdout = self._original_stdout
+        sys.stderr.close()
+        sys.stderr = self._original_stderr
 
 def remove_diag(A):
     """Remove diagonal elements from a matrix."""
